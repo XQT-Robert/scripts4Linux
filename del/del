@@ -1,0 +1,122 @@
+#!/bin/bash
+#
+# del command
+# 1. Initialization: Ensure ~/Trash and the clean script exist
+# 2. Implements a "safe delete" by moving files/directories to ~/Trash
+
+TRASH_DIR="$HOME/Trash"
+CLEAN_SCRIPT="$TRASH_DIR/clean"
+
+# -----------------------------
+# 1. Initialization
+# -----------------------------
+
+# Create ~/Trash if it doesn't exist
+if [ ! -d "$TRASH_DIR" ]; then
+  mkdir -p "$TRASH_DIR"
+fi
+
+# Create ~/Trash/clean script if it doesn't exist
+if [ ! -f "$CLEAN_SCRIPT" ]; then
+  cat > "$CLEAN_SCRIPT" << 'EOF'
+#!/bin/bash
+# clean script: empties the Trash folder except itself, with a confirmation prompt
+
+read -p "Are you sure you want to empty the Trash? [y/N]: " ans
+if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
+  # Remove all items except 'clean'
+  find . -mindepth 1 -maxdepth 1 ! -name clean -exec rm -rf {} +
+  echo "Trash is now empty."
+else
+  echo "Operation canceled."
+fi
+EOF
+
+  chmod +x "$CLEAN_SCRIPT"
+fi
+
+# -----------------------------
+# 2. del command implementation
+# -----------------------------
+
+function show_help() {
+  cat <<HELP
+Usage: del [OPTIONS] FILE_OR_DIRECTORY...
+Options:
+  -r         Recursively move directories to Trash
+  -f         Force move without confirmation
+  --help     Show this help message
+
+Description:
+  This command moves the specified files or directories to the Trash folder (~/Trash).
+  - Use '-r' to move directories (otherwise you'll get an error if you try to move a directory).
+  - Use '-f' to skip the confirmation prompt.
+  - You can run the 'clean' script in ~/Trash to permanently remove all items in the Trash (except the 'clean' script itself).
+HELP
+}
+
+# Parse options
+force=0
+recursive=0
+targets=()
+
+for arg in "$@"; do
+  case "$arg" in
+    -f)
+      force=1
+      ;;
+    -r)
+      recursive=1
+      ;;
+    --help)
+      show_help
+      exit 0
+      ;;
+    -*)
+      echo "Error: Unsupported option '$arg'"
+      show_help
+      exit 1
+      ;;
+    *)
+      targets+=("$arg")
+      ;;
+  esac
+done
+
+# If no arguments are provided, prompt user to check usage
+if [ ${#targets[@]} -eq 0 ]; then
+  echo "No arguments provided. Please use 'del --help' to see usage information."
+  exit 1
+fi
+
+# Process each target
+for item in "${targets[@]}"; do
+  if [ ! -e "$item" ]; then
+    echo "del: cannot remove '$item': No such file or directory"
+    continue
+  fi
+
+  # If it's a directory but -r is not specified, show an error
+  if [ -d "$item" ] && [ $recursive -eq 0 ]; then
+    echo "del: cannot remove directory '$item': use -r option"
+    continue
+  fi
+
+  # If force is not used, prompt for confirmation
+  if [ $force -eq 0 ]; then
+    read -p "del: Are you sure you want to move '$item' to Trash? [y/N]: " ans
+    if [[ "$ans" != "y" && "$ans" != "Y" ]]; then
+      echo "Skipped '$item'"
+      continue
+    fi
+  fi
+
+  # Move the item to Trash
+  mv -f "$item" "$TRASH_DIR"
+  if [ $? -eq 0 ]; then
+    echo "'$item' has been moved to $TRASH_DIR."
+  else
+    echo "del: failed to move '$item' to $TRASH_DIR."
+  fi
+done
+
