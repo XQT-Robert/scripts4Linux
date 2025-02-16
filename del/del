@@ -1,29 +1,53 @@
 #!/bin/bash
 #
-# del command
-# 1. Initialization: Ensure ~/Trash and the clean script exist
+# del command with version check and updated 'clean' script
+# 1. Initialization: Ensure ~/Trash and the clean script exist/up-to-date
 # 2. Implements a "safe delete" by moving files/directories to ~/Trash
+# 3. Supports combined options like -rf or -fr
 
 TRASH_DIR="$HOME/Trash"
 CLEAN_SCRIPT="$TRASH_DIR/clean"
 
+# Define the desired version of the clean script
+LATEST_CLEAN_VERSION="1.1"
+
 # -----------------------------
 # 1. Initialization
 # -----------------------------
-
 # Create ~/Trash if it doesn't exist
 if [ ! -d "$TRASH_DIR" ]; then
   mkdir -p "$TRASH_DIR"
 fi
 
-# Create ~/Trash/clean script if it doesn't exist
+# Check if clean script exists and has the correct version
+# If not, overwrite it with the latest version
+if [ -f "$CLEAN_SCRIPT" ]; then
+  # Check if version matches
+  if ! grep -q "CLEAN_VERSION=\"$LATEST_CLEAN_VERSION\"" "$CLEAN_SCRIPT"; then
+    echo "Outdated clean script detected. Updating..."
+    rm -f "$CLEAN_SCRIPT"
+  fi
+fi
+
+# If the clean script doesn't exist or was removed, create/update it
 if [ ! -f "$CLEAN_SCRIPT" ]; then
-  cat > "$CLEAN_SCRIPT" << 'EOF'
+  cat > "$CLEAN_SCRIPT" << EOF
 #!/bin/bash
-# clean script: empties the Trash folder except itself, with a confirmation prompt
+# clean script with version check
+CLEAN_VERSION="$LATEST_CLEAN_VERSION"
+
+# Always list contents of Trash (excluding clean) and ask for confirmation
+cd "\$(dirname "\$0")" || exit 1
+
+# Count items excluding this 'clean' script
+count=\$(ls -A1 | grep -v "^clean\$" | wc -l)
+echo "There are \$count items in the Trash (excluding 'clean' script)."
+
+echo "Items in Trash folder:"
+ls -A | grep -v "^clean\$"
 
 read -p "Are you sure you want to empty the Trash? [y/N]: " ans
-if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
+if [[ "\$ans" == "y" || "\$ans" == "Y" ]]; then
   # Remove all items except 'clean'
   find . -mindepth 1 -maxdepth 1 ! -name clean -exec rm -rf {} +
   echo "Trash is now empty."
@@ -45,47 +69,70 @@ Usage: del [OPTIONS] FILE_OR_DIRECTORY...
 Options:
   -r         Recursively move directories to Trash
   -f         Force move without confirmation
+  -rf/-fr    Combine recursive and force (same as "-r -f")
   --help     Show this help message
 
 Description:
   This command moves the specified files or directories to the Trash folder (~/Trash).
   - Use '-r' to move directories (otherwise you'll get an error if you try to move a directory).
   - Use '-f' to skip the confirmation prompt.
-  - You can run the 'clean' script in ~/Trash to permanently remove all items in the Trash (except the 'clean' script itself).
+  - You can combine '-r' and '-f' as '-rf' or '-fr'.
+  - You can run the 'clean' script in ~/Trash to permanently remove items in Trash (except the 'clean' script itself).
 HELP
 }
 
-# Parse options
 force=0
 recursive=0
 targets=()
 
-for arg in "$@"; do
+# Parse options
+while [ $# -gt 0 ]; do
+  arg="$1"
   case "$arg" in
-    -f)
-      force=1
-      ;;
-    -r)
-      recursive=1
-      ;;
     --help)
       show_help
       exit 0
       ;;
-    -*)
-      echo "Error: Unsupported option '$arg'"
-      show_help
-      exit 1
+
+    # Check for combined short options (-rf or -fr)
+    -[rf]*)
+      # Parse each character after '-'
+      chars="${arg#-}"
+      for (( i=0; i<${#chars}; i++ )); do
+        c="${chars:$i:1}"
+        case "$c" in
+          r)
+            recursive=1
+            ;;
+          f)
+            force=1
+            ;;
+          *)
+            echo "Error: Unsupported option '-$c'"
+            show_help
+            exit 1
+            ;;
+        esac
+      done
       ;;
+
     *)
-      targets+=("$arg")
+      # If it starts with '-', but not recognized above, it's an error
+      if [[ "$arg" == -* ]]; then
+        echo "Error: Unsupported option '$arg'"
+        show_help
+        exit 1
+      else
+        targets+=("$arg")
+      fi
       ;;
   esac
+  shift
 done
 
 # If no arguments are provided, prompt user to check usage
 if [ ${#targets[@]} -eq 0 ]; then
-  echo "No arguments provided. Please use 'del --help' to see usage information."
+  echo "No file or directory specified. Please use 'del --help' to see usage information."
   exit 1
 fi
 
@@ -119,4 +166,3 @@ for item in "${targets[@]}"; do
     echo "del: failed to move '$item' to $TRASH_DIR."
   fi
 done
-
