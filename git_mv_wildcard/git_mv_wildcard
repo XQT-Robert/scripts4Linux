@@ -1,0 +1,30 @@
+#!/bin/bash
+
+force=false
+if [[ "$1" == "--force" ]]; then
+    force=true
+    shift
+fi
+
+src_pattern="$1"
+dst_pattern="$2"
+
+# 提取目标目录路径（确保为绝对路径）
+dst_dir=$(dirname "$dst_pattern")
+# 规范化路径（避免相对路径导致的嵌套问题）
+dst_dir=$(realpath -m "$dst_dir")
+
+# 遍历匹配的源文件
+for src_file in $src_pattern; do
+    if [ -f "$src_file" ]; then
+        filename=$(basename "$src_file")
+        dst_file="$dst_dir/$filename"
+        
+        if [ "$force" = true ]; then
+            git mv --force "$src_file" "$dst_file"
+        else
+            git mv "$src_file" "$dst_file"
+        fi
+        echo "Moved in Git: $src_file -> $dst_file"
+    fi
+done

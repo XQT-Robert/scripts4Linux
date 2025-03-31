@@ -1,0 +1,34 @@
+#仅前三步是必须的，环境变量等可以不设置
+
+# 1. 将代码保存为名为 del 的脚本文件
+# 将以下代码复制到一个名为 del 的文件中，可以使用文本编辑器，如 vim 或 nano：
+# 使用 vim 编辑器：
+vim ~/del
+
+# 将以下代码粘贴到 del 文件中：
+# (这里粘贴 del 脚本的内容)
+
+# 2. 赋予脚本可执行权限
+chmod +x ~/del
+
+# 3. 将脚本文件移动到系统的 PATH 中，使其在任何地方都能调用
+# 如果希望所有用户都能使用 del 命令，可以将其移动到 /usr/local/bin/：
+sudo mv ~/del /usr/local/bin/
+
+# 如果只希望当前用户使用，可以将其移动到 ~/bin/（如果 ~/bin/ 目录不存在则先创建）：
+mkdir -p ~/bin
+mv ~/del ~/bin/
+
+# 4. 确保 ~/bin/ 在 PATH 环境变量中
+# 编辑 .bashrc 或 .zshrc 文件（取决于你使用的 shell）以确保 ~/bin/ 在 PATH 中：
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
+# 或者如果使用的是 zsh：
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
+
+# 5. 使修改的 PATH 配置立即生效
+source ~/.bashrc  # 或者 source ~/.zshrc
+
+# 6. 验证 del 命令是否有效
+# 现在可以在任何地方使用 del 命令了，尝试运行：
+del --help
+
